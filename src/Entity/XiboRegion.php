@@ -28,6 +28,7 @@ class XiboRegion extends XiboEntity
     public $transitionDuration;
     public $transitionDirection;
     public $playlists;
+    public $regionPlaylist;
 
 	/**
      * Create Region
@@ -50,19 +51,30 @@ class XiboRegion extends XiboEntity
         $this->getLogger()->info('Creating Region in Layout Id ' . $this->layoutId);
         // Array response from CMS
         $response = $this->doPost('/region/' . $this->layoutId, $this->toArray());
+
         // Hydrate the Region object
         $this->getLogger()->debug('Passing the response to Hydrate');
+        /** @var $XiboRegion $region */
         $region = $this->hydrate($response);
 
-        $this->getLogger()->debug('Creating child object Playlist and linking it to parent Region');
         // Response Array from the CMS will contain a playlists entry, which holds the attributes for 
-        // each Playlist.
-        foreach ($response['playlists'] as $item) {
+        // each Playlist (1.8 series).
+        if (isset($response['playlists'])) {
+            $this->getLogger()->debug('Creating child object Playlist and linking it to parent Region');
+            foreach ($response['playlists'] as $item) {
+                $playlist = new XiboPlaylist($this->getEntityProvider());
+                // Hydrate the Playlist object with the items from region->playlists
+                $playlist->hydrate($item);
+                // Add to parent object
+                $region->playlists[] = $playlist;
+            }
+        }
+        // In 2.0 series, regions no longer have an array of playlists, instead they have one assigned to regionPlaylist parameter
+        if (isset($response['regionPlaylist'])) {
+            $this->getLogger()->debug('Creating child object Playlist and linking it to regionPlaylist');
             $playlist = new XiboPlaylist($this->getEntityProvider());
-            // Hydrate the Playlist object with the items from region->playlists
-            $playlist->hydrate($item);
-            // Add to parent object
-            $region->playlists[] = $playlist;
+            $playlist->hydrate($response['regionPlaylist']);
+            $region->regionPlaylist = $playlist;
         }
         
         return $region;
